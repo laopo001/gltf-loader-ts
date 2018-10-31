@@ -1,6 +1,6 @@
 import { FileLoader } from './fileloader';
 import { GLTFBinaryData } from './glb-decoder';
-import { GlTf, GlTfId } from './gltf';
+import { Accessor, GlTf, GlTfId } from './gltf';
 import { LoadingManager } from './loadingmanager';
 
 /** Spec: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#accessor-element-size */
@@ -16,12 +16,12 @@ export const GLTF_COMPONENT_TYPE_ARRAYS: { [index: number]: any } = {
 /** Spec: https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#accessor-element-size */
 export const GLTF_ELEMENTS_PER_TYPE: { [index: string]: number } = {
     SCALAR: 1,
-    VEC2:   2,
-    VEC3:   3,
-    VEC4:   4,
-    MAT2:   4,
-    MAT3:   9,
-    MAT4:  16,
+    VEC2: 2,
+    VEC3: 3,
+    VEC4: 4,
+    MAT2: 4,
+    MAT3: 9,
+    MAT4: 16,
 };
 
 export class GltfAsset {
@@ -65,32 +65,50 @@ export class GltfAsset {
 
         return new Uint8Array(baseBuffer, baseBufferByteOffset + byteOffset, byteLength);
     }
+    async bufferViewData2<T>(index: GlTfId, acc: Accessor): Promise<T> {
+        if (!this.gltf.bufferViews) {
+            /* istanbul ignore next */
+            throw new Error('No buffer views found.');
+        }
+        const bufferView = this.gltf.bufferViews[index];
+        const bufferData = await this.bufferData.get(bufferView.buffer);
+        // const byteLength = bufferView.byteLength || 0;
+        const byteOffset = (bufferView.byteOffset || 0) + (acc.byteOffset || 0);
 
+        // For GLB files, the 'base buffer' is the whole GLB file, including the json part.
+        // Therefore we have to consider bufferData's offset within its buffer it as well.
+        // For non-GLB files it will be 0.
+        const baseBuffer = bufferData.buffer;
+        const baseBufferByteOffset = bufferData.byteOffset;
+
+        const view = GLTF_COMPONENT_TYPE_ARRAYS[acc.componentType];
+        return new view(baseBuffer, baseBufferByteOffset + byteOffset, acc.count * GLTF_ELEMENTS_PER_TYPE[acc.type]);
+    }
     /**
      * Fetch the data associated with the accessor. Equivalent to `bufferViewData` for most accessors; special cases:
      * - `accessor.bufferView` is undefined: create a buffer initialized with zeroes.
      * - `accessor.sparse` is defined: Copy underlying buffer view and apply values from `sparse`.
      */
-    async accessorData(index: GlTfId): Promise<Uint8Array> {
+    async accessorData<T= Uint8Array>(index: GlTfId): Promise<T> {
         if (!this.gltf.accessors) {
             /* istanbul ignore next */
             throw new Error('No accessors views found.');
         }
         const acc = this.gltf.accessors[index];
         const elementsPerType = GLTF_ELEMENTS_PER_TYPE[acc.type];
+        const byteSize = GLTF_COMPONENT_TYPE_ARRAYS[acc.componentType].BYTES_PER_ELEMENT *
+            elementsPerType *
+            acc.count;
         let data;
         if (acc.bufferView !== undefined) {
-            data = await this.bufferViewData(acc.bufferView);
+            data = await this.bufferViewData2(acc.bufferView, acc);
         } else {
-            const byteSize = GLTF_COMPONENT_TYPE_ARRAYS[acc.componentType].BYTES_PER_ELEMENT *
-                elementsPerType *
-                acc.count;
             data = new Uint8Array(byteSize);
         }
 
         if (acc.sparse) {
             // parse sparse data
-            const {count, indices, values} = acc.sparse;
+            const { count, indices, values } = acc.sparse;
             let typedArray = GLTF_COMPONENT_TYPE_ARRAYS[indices.componentType];
             let bufferViewData = await this.bufferViewData(indices.bufferView);
             const indexData = new typedArray(bufferViewData.buffer,
@@ -226,7 +244,7 @@ export class ImageData {
             isObjectURL = true;
             const blob = new Blob([bufferView], { type: image.mimeType });
             sourceURI = URL.createObjectURL(blob);
-        } else if (image.uri !== undefined ) {
+        } else if (image.uri !== undefined) {
             sourceURI = this.manager.resolveURL(resolveURL(image.uri, this.baseUri));
         } else {
             /* istanbul ignore next */
