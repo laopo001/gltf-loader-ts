@@ -5,8 +5,8 @@ const BINARY_HEADER_LENGTH = 12;
 const BINARY_CHUNK_TYPES = { JSON: 0x4E4F534A, BIN: 0x004E4942 };
 
 export class GLTFBinaryData {
-    json: string;
-    binaryChunk: Uint8Array;
+    json!: string;
+    binaryChunk!: Uint8Array;
     constructor(data: ArrayBuffer) {
         const headerView = new DataView(data, 0, BINARY_HEADER_LENGTH);
 

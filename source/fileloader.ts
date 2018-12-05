@@ -9,10 +9,10 @@ export type XMLHttpRequestResponse = any;
 export class FileLoader {
     manager: LoadingManager;
     path: string | undefined;
-    responseType: XMLHttpRequestResponseType;
-    withCredentials: boolean;
-    mimeType: string;
-    requestHeaders: { [k: string]: string } ;
+    responseType!: XMLHttpRequestResponseType;
+    withCredentials!: boolean;
+    mimeType!: string;
+    requestHeaders!: { [k: string]: string } ;
 
     private runningRequests: { [url: string]: Promise<XMLHttpRequestResponse>} = {};
 
@@ -69,7 +69,7 @@ export class FileLoader {
             };
 
             /* istanbul ignore next */
-            xhr.onerror = function(event: ErrorEvent) {
+            (xhr as any).onerror = function(event: ErrorEvent) {
                 reject({
                     url,
                     status: this.status,
